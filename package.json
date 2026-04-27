@@ -3,12 +3,22 @@
   "version": "0.0.1",
   "private": true,
   "pnpm": {
-    "onlyBuiltDependencies": ["@nestjs/core", "@prisma/engines", "prisma", "sharp", "unrs-resolver"]
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/engines",
+      "prisma",
+      "sharp",
+      "unrs-resolver"
+    ]
   },
   "scripts": {
+    "dev": "concurrently -n API,WEB -c blue,green \"pnpm --filter api start:dev\" \"pnpm --filter web dev\"",
     "dev:web": "pnpm --filter web dev",
-    "dev:api": "pnpm --filter api dev",
+    "dev:api": "pnpm --filter api start:dev",
     "build:web": "pnpm --filter web build",
     "build:api": "pnpm --filter api build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
