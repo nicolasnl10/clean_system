@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  admin
+  atendimento
+  supervisor
+  funcionario
+}
+
+enum CustomerType {
+  residencial
+  comercial
+}
+
+enum LeadOrigin {
+  site
+  whatsapp
+  telefone
+  email
+}
+
+enum LeadStatus {
+  novo
+  em_contato
+  convertido
+  perdido
+}
+
+enum EmployeeStatus {
+  ativo
+  afastado
+  desligado
+}
+
+enum AppointmentStatus {
+  agendado
+  confirmado
+  em_execucao
+  concluido
+  cancelado
+  reagendado
+}
+
+enum AppointmentFrequency {
+  unico
+  semanal
+  quinzenal
+  mensal
+}
+
+enum ServiceOrderStatus {
+  aberta
+  em_execucao
+  concluida
+}
+
+enum NotificationType {
+  email
+  whatsapp
+}
+
+enum NotificationEventType {
+  confirmacao_agendamento
+  lembrete
+  pos_atendimento
+  pesquisa_satisfacao
+}
+
+enum NotificationStatus {
+  pendente
+  enviado
+  erro
+}
+
+enum InvoiceStatus {
+  pendente
+  pago
+  vencido
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  name         String   @db.VarChar(120)
+  email        String   @unique @db.VarChar(180)
+  passwordHash String   @db.VarChar(255)
+  role         Role
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee     Employee?
+  supervisedTeams Team[]        @relation("SupervisorTeams")
+  appointments    Appointment[] @relation("CreatedByUser")
+
+  @@map("users")
+}
+
+model Client {
+  id                String       @id @default(uuid())
+  name              String       @db.VarChar(150)
+  document          String?      @db.VarChar(30)
+  email             String?      @db.VarChar(180)
+  phone             String?      @db.VarChar(30)
+  customerType      CustomerType
+  addressStreet     String?      @db.VarChar(200)
+  addressNumber     String?      @db.VarChar(20)
+  addressComplement String?      @db.VarChar(100)
+  neighborhood      String?      @db.VarChar(100)
+  city              String?      @db.VarChar(100)
+  state             String?      @db.VarChar(50)
+  zipCode           String?      @db.VarChar(20)
+  notes             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  appointments  Appointment[]
+  invoices      Invoice[]
+  notifications Notification[]
+  convertedLeads Lead[]         @relation("ConvertedClient")
+
+  @@map("clients")
+}
+
+model Lead {
+  id                String     @id @default(uuid())
+  name              String     @db.VarChar(150)
+  email             String?    @db.VarChar(180)
+  phone             String?    @db.VarChar(30)
+  serviceRequested  String?    @db.VarChar(150)
+  message           String?
+  origin            LeadOrigin
+  status            LeadStatus @default(novo)
+  convertedClientId String?
+  convertedClient   Client?    @relation("ConvertedClient", fields: [convertedClientId], references: [id])
+  createdAt         DateTime   @default(now())
+
+  @@map("leads")
+}
+
+model Employee {
+  id                String         @id @default(uuid())
+  userId            String         @unique
+  user              User           @relation(fields: [userId], references: [id])
+  name              String         @db.VarChar(150)
+  cpf               String?        @db.VarChar(20)
+  email             String?        @db.VarChar(180)
+  phone             String?        @db.VarChar(30)
+  position          String?        @db.VarChar(80)
+  hireDate          DateTime?      @db.Date
+  status            EmployeeStatus @default(ativo)
+  availabilityNotes String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  teamMembers TeamMember[]
+
+  @@map("employees")
+}
+
+model Team {
+  id           String   @id @default(uuid())
+  name         String   @db.VarChar(100)
+  supervisorId String
+  supervisor   User     @relation("SupervisorTeams", fields: [supervisorId], references: [id])
+  createdAt    DateTime @default(now())
+
+  members      TeamMember[]
+  appointments Appointment[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id         String   @id @default(uuid())
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id])
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([teamId, employeeId])
+  @@map("team_members")
+}
+
+model Service {
+  id                       String   @id @default(uuid())
+  name                     String   @db.VarChar(120)
+  description              String?
+  estimatedDurationMinutes Int?
+  basePrice                Decimal  @db.Decimal(10, 2)
+  active                   Boolean  @default(true)
+
+  appointments       Appointment[]
+  checklistTemplates ServiceChecklistTemplate[]
+
+  @@map("services")
+}
+
+model Appointment {
+  id                  String               @id @default(uuid())
+  clientId            String
+  client              Client               @relation(fields: [clientId], references: [id])
+  serviceId           String
+  service             Service              @relation(fields: [serviceId], references: [id])
+  teamId              String
+  team                Team                 @relation(fields: [teamId], references: [id])
+  scheduledDate       DateTime             @db.Date
+  startTime           DateTime             @db.Time(6)
+  endTime             DateTime             @db.Time(6)
+  status              AppointmentStatus    @default(agendado)
+  frequency           AppointmentFrequency @default(unico)
+  parentAppointmentId String?
+  parentAppointment   Appointment?         @relation("AppointmentRecurrence", fields: [parentAppointmentId], references: [id])
+  childAppointments   Appointment[]        @relation("AppointmentRecurrence")
+  notes               String?
+  createdById         String
+  createdBy           User                 @relation("CreatedByUser", fields: [createdById], references: [id])
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  serviceOrder  ServiceOrder?
+  invoices      Invoice[]
+  notifications Notification[]
+
+  @@map("appointments")
+}
+
+model ServiceOrder {
+  id              String             @id @default(uuid())
+  appointmentId   String             @unique
+  appointment     Appointment        @relation(fields: [appointmentId], references: [id])
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  status          ServiceOrderStatus @default(aberta)
+  beforePhotos    Json               @default("[]")
+  afterPhotos     Json               @default("[]")
+  clientSignature String?
+  observations    String?
+  createdAt       DateTime           @default(now())
+
+  checklists ServiceChecklist[]
+
+  @@map("service_orders")
+}
+
+model ServiceChecklistTemplate {
+  id         String   @id @default(uuid())
+  serviceId  String
+  service    Service  @relation(fields: [serviceId], references: [id])
+  itemName   String   @db.VarChar(150)
+  orderIndex Int      @default(0)
+  active     Boolean  @default(true)
+
+  checklists ServiceChecklist[]
+
+  @@map("service_checklist_templates")
+}
+
+model ServiceChecklist {
+  id             String                    @id @default(uuid())
+  serviceOrderId String
+  serviceOrder   ServiceOrder              @relation(fields: [serviceOrderId], references: [id])
+  templateItemId String?
+  templateItem   ServiceChecklistTemplate? @relation(fields: [templateItemId], references: [id])
+  itemName       String                    @db.VarChar(150)
+  completed      Boolean                   @default(false)
+  notes          String?
+
+  @@map("service_checklists")
+}
+
+model Notification {
+  id            String                @id @default(uuid())
+  clientId      String
+  client        Client                @relation(fields: [clientId], references: [id])
+  appointmentId String?
+  appointment   Appointment?          @relation(fields: [appointmentId], references: [id])
+  type          NotificationType
+  eventType     NotificationEventType
+  message       String
+  status        NotificationStatus    @default(pendente)
+  sentAt        DateTime?
+  createdAt     DateTime              @default(now())
+
+  @@map("notifications")
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id])
+  appointmentId String
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id])
+  amount        Decimal       @db.Decimal(10, 2)
+  status        InvoiceStatus @default(pendente)
+  dueDate       DateTime      @db.Date
+  paidAt        DateTime?
+
+  @@map("invoices")
+}

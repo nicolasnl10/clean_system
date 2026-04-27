@@ -2,6 +2,9 @@
   "name": "clean-system",
   "version": "0.0.1",
   "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": ["@nestjs/core", "@prisma/engines", "prisma", "sharp", "unrs-resolver"]
+  },
   "scripts": {
     "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter api dev",
