@@ -31,5 +31,6 @@ Thumbs.db
 # Prisma
 prisma/migrations/
 
-# Uploads (local storage)
-uploads/
+# Uploads (local storage) — ignora arquivos mas mantém a pasta
+uploads/**
+!uploads/.gitkeep
